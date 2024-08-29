@@ -1,0 +1,7 @@
+Use docker image "pytorch/pytorch:2.1.2-cuda11.8-cudnn8-runtime"
+
+Install packages:
+pip install tensorboard
+pip install numpy tqdm 
+pip install torch_geometric  
+pip install gymnasium
