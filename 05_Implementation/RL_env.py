@@ -26,44 +26,55 @@ class TrainingConfig:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     replay_size = 10000
     eval_every_n_epochs = 20
-    lr=1e-4
+    lr = 1e-4
+    gamma = 0.9
+    hidden_dim = 3
+    num_message_passing = 4
 
 config = TrainingConfig()
 
 
 # ## Training
 
-# In[4]:
+# In[3]:
 
 
 tb_summary = SummaryWriter(config.output_dir, purge_step=0)
 os.makedirs(config.output_dir, exist_ok=True)
 
 
-# In[5]:
+# In[4]:
 
 
-gnn_employees = RGCNConv(in_channels = (1,7), out_channels=2, num_relations=1).to(config.device)
-gnn_shifts = RGCNConv(in_channels = (7,1), out_channels=2, num_relations=1).to(config.device)
+gnn = RGCNConv(in_channels = (config.hidden_dim, config.hidden_dim), out_channels=config.hidden_dim, num_relations=1).to(config.device)
+dim_employee = 1
+projection_employees = torch.nn.Linear(dim_employee, config.hidden_dim).to(config.device)
+dim_shift = 7
+projection_shifts = torch.nn.Linear(dim_shift, config.hidden_dim).to(config.device)
 
 
 # In[6]:
 
 
-optimizer_employees = torch.optim.AdamW(gnn_employees.parameters(), lr=config.lr, amsgrad=True)
-optimizer_shifts = torch.optim.AdamW(gnn_shifts.parameters(), lr=config.lr, amsgrad=True)
+optimizer = torch.optim.AdamW(
+    list(gnn.parameters()) + list(projection_employees.parameters()) + list(projection_shifts.parameters()), 
+    lr=config.lr, 
+    amsgrad=True
+    ) 
 
 
 # In[7]:
 
 
 training = Training(
-    gnn_employees, 
-    gnn_shifts, 
-    optimizer_employees,
-    optimizer_shifts,
+    gnn, 
+    optimizer, 
+    projection_employees,
+    projection_shifts,
     tb_summary, 
-    device=config.device, 
+    device=config.device,
+    num_message_passing=config.num_message_passing, 
+    gamma=config.gamma,
     max_steps=config.max_steps, 
     num_epoch=config.num_epoch, 
     batch_size=config.batch_size, 

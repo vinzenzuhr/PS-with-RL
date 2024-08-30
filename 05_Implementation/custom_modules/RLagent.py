@@ -9,13 +9,17 @@ class RLagent():
     """
     Agent for choosing an action based on the current state.
     Args:
-        gnn_employees (RGCNConv): GNN to encode the employee nodes.
-        gnn_shifts (RGCNConv): GNN to encode the shift nodes.        
+        gnn (RGCNConv): GNN to encode nodes. 
+        projection_employees (torch.nn.Linear): Linear layer for projecting employee features.
+        projection_shifts (torch.nn.Linear): Linear layer for projecting shift features. 
+        num_message_passing (int, optional): Number of iterations to embed nodes with GNN. Defaults to 4.      
     """
     
-    def __init__(self, gnn_employees: RGCNConv, gnn_shifts: RGCNConv) -> None: 
-        self.gnn_employees = gnn_employees
-        self.gnn_shifts = gnn_shifts
+    def __init__(self, gnn: RGCNConv, projection_employees: torch.nn.Linear, projection_shifts: torch.nn.Linear, num_message_passing: int = 4,) -> None: 
+        self.gnn = gnn  
+        self.projection_employees = projection_employees
+        self.projection_shifts = projection_shifts
+        self.num_message_passing = num_message_passing
 
     def decode(self, emb_employees: torch.tensor, emb_shifts: torch.tensor) -> torch.tensor:
         """
@@ -43,19 +47,25 @@ class RLagent():
         Returns:
             Tuple[torch.tensor, torch.tensor]: Embeddings for employees and shifts.
         """
-
-        emb_shifts = self.gnn_employees(
-            x=(state.x_dict["employee"], state.x_dict["shift"]), 
-            edge_index=state["assigned"]["edge_index"], 
-            edge_type=torch.zeros(state["assigned"]["edge_index"].shape[1], dtype=torch.int64)
-            )
-
+        assignments = state["assigned"]["edge_index"]
         assignments_flipped=torch.vstack((state["assigned"]["edge_index"][1], state["assigned"]["edge_index"][0])) 
-        emb_employees = self.gnn_shifts(
-            x=(state.x_dict["shift"], state.x_dict["employee"]), 
-            edge_index=assignments_flipped, 
-            edge_type=torch.zeros(state["assigned"]["edge_index"].shape[1], dtype=torch.int64)
-            )
+        edge_type = torch.zeros(state["assigned"]["edge_index"].shape[1], dtype=torch.int64)
+
+        emb_employees = self.projection_employees(state.x_dict["employee"])
+        emb_shifts = self.projection_shifts(state.x_dict["shift"])
+        
+        for _ in range(self.num_message_passing):
+            emb_shifts = self.gnn(
+                x=(emb_employees, emb_shifts), 
+                edge_index=assignments, 
+                edge_type=edge_type
+                )
+
+            emb_employees = self.gnn(
+                x=(emb_shifts, emb_employees), 
+                edge_index=assignments_flipped, 
+                edge_type=edge_type
+                )
 
         return emb_employees, emb_shifts
         

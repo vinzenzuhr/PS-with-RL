@@ -18,12 +18,13 @@ class Training():
         """
         Class for training the encoder models of the reinforcement learning agent. 
         Args:
-            gnn_employees (RGCNConv): GNN to encode the employee nodes.
-            gnn_shifts (RGCNConv): GNN to encode the shift nodes.
-            optimizer_employees (Optimizer): Optimizer for employee GNN.
-            optimizer_shifts (Optimizer): Optimizer for shift GNN.
+            gnn (RGCNConv): GNN to encode nodes. 
+            optimizer (Optimizer): Optimizer for GNN and projection layers. 
+            projection_employees (torch.nn.Linear): Linear layer for projecting employee features.
+            projection_shifts (torch.nn.Linear): Linear layer for projecting shift features.
             tensorboard (SummaryWriter): Tensorboard writer for logging.
             device (device): Device to run the training on.
+            num_message_passing (int, optional): Number of iterations to embed nodes with GNN. Defaults to 4.    
             gamma (float, optional): Discount factor for future rewards. Defaults to 0.9.
             max_steps (int, optional): Maximum number of steps per episode. Defaults to 20.
             num_epoch (int, optional): Number of training epochs. Defaults to 100.
@@ -35,12 +36,13 @@ class Training():
     
     def __init__(
             self, 
-            gnn_employees: RGCNConv, 
-            gnn_shifts: RGCNConv, 
-            optimizer_employees: Optimizer, 
-            optimizer_shifts: Optimizer, 
+            gnn: RGCNConv,  
+            optimizer: Optimizer, 
+            projection_employees: torch.nn.Linear, 
+            projection_shifts: torch.nn.Linear, 
             tensorboard: SummaryWriter, 
             device: device, 
+            num_message_passing: int = 4,
             gamma: float = 0.9,
             max_steps: int = 20, 
             num_epoch: int = 100, 
@@ -49,12 +51,13 @@ class Training():
             eval_every_n_epochs: int = 20, 
             output_dir: str = "."
             ):
-        self.gnn_employees = gnn_employees
-        self.gnn_shifts = gnn_shifts  
-        self.optimizer_employees = optimizer_employees
-        self.optimizer_shifts = optimizer_shifts
+        self.gnn = gnn  
+        self.optimizer = optimizer 
+        self.projection_employees = projection_employees
+        self.projection_shifts = projection_shifts
         self.tensorboard = tensorboard
         self.device = device 
+        self.num_message_passing = num_message_passing
         self.max_steps = max_steps
         self.num_epoch = num_epoch
         self.batch_size = batch_size
@@ -65,7 +68,7 @@ class Training():
             assignments=DataGenerator.get_empty_assignments(), 
             device=device
             )
-        self.agent = RLagent(gnn_employees, gnn_shifts) 
+        self.agent = RLagent(gnn, projection_employees, projection_shifts, num_message_passing) 
         self.actor = ActorMemoryWrapper(Actor(self.agent, env=env, max_steps=max_steps), self.memory, gamma=gamma)
         self.eval_every_n_epochs = eval_every_n_epochs
         self.output_dir = output_dir
@@ -98,13 +101,11 @@ class Training():
 
         objective = -(log_probs * future_returns_batch).sum() / self.batch_size
 
-        self.optimizer_employees.zero_grad()
-        self.optimizer_shifts.zero_grad()
+        self.optimizer.zero_grad() 
         
         objective.backward()
         
-        self.optimizer_employees.step()
-        self.optimizer_shifts.step()         
+        self.optimizer.step()        
 
         self.tensorboard.add_scalar("train_objective", objective.detach().cpu(), self.epoch)
         self.tensorboard.add_scalar("train_avg_reward", reward_batch.mean().detach().cpu(), self.epoch)
@@ -170,8 +171,9 @@ class Training():
         self.tensorboard.add_scalar("termination_percentage", num_terminated / 3, self.epoch)     
         
         if eval_future_returns_employee_5 > self.best_eval_future_returns_employee_5:
-            torch.save(self.gnn_employees.state_dict(), self.output_dir + "/gnn_employees_weights")
-            torch.save(self.gnn_shifts.state_dict(), self.output_dir + "/gnn_shifts_weights")
+            torch.save(self.gnn.state_dict(), self.output_dir + "/gnn_weights")
+            torch.save(self.projection_employees.state_dict(), self.output_dir + "/projection_employees_weights")
+            torch.save(self.projection_shifts.state_dict(), self.output_dir + "/projection_shifts_weights")
         
     def start_training(self) -> None:
         """
