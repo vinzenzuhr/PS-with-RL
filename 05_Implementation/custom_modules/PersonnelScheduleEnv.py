@@ -137,6 +137,8 @@ class PersonnelScheduleEnv(gym.Env):
                 mask[i] = False
         # remove # if removing is allowed
         #self.state["assigned"].edge_index = self.state["assigned"].edge_index[:,mask] 
+
+        #print(self.state["assigned"].edge_index.requires_grad)
         
         # if no shift exists, create one
         if not (~mask).any():
@@ -165,10 +167,10 @@ class PersonnelScheduleEnv(gym.Env):
         """
 
         reward = 0
-        reward = reward + self.get_num_staffed_shifts()
-        reward = reward - 10*self._get_num_consecutive_violations()
+        #reward = reward + self.get_num_staffed_shifts()
+        #reward = reward - ((1/(self.num_shifts-1))*self._get_num_consecutive_violations())
         if self.terminated():
-            reward = reward + 1000
+            reward = reward + 1
         return reward
 
     def terminated(self) -> bool:

@@ -49,7 +49,8 @@ class Training():
             batch_size: int = 128, 
             replay_size: int = 10000, 
             eval_every_n_epochs: int = 20, 
-            output_dir: str = "."
+            output_dir: str = ".",
+            clip_norm: float = 1.0
             ):
         self.gnn = gnn  
         self.optimizer = optimizer 
@@ -72,6 +73,7 @@ class Training():
         self.actor = ActorMemoryWrapper(Actor(self.agent, env=env, max_steps=max_steps), self.memory, gamma=gamma)
         self.eval_every_n_epochs = eval_every_n_epochs
         self.output_dir = output_dir
+        self.clip_norm = clip_norm
         self.best_eval_future_returns_employee_5 = -sys.maxsize
     
     def _gradient_update(self) -> None:
@@ -91,25 +93,33 @@ class Training():
         future_returns_batch = torch.tensor(batch.future_return, dtype=torch.float).to(self.device)
 
         logits_list = list()
-        for i in torch.arange(self.batch_size):
+        for i in torch.arange(self.batch_size): 
             logits = self.agent.decode(*self.agent.encode(state_batch[i]))
             logits_list.append(logits)
-        logits_batch = torch.vstack(logits_list).to(self.device)
+        logits_batch = torch.vstack(logits_list).to(self.device) 
 
         policy_distribution = distributions.categorical.Categorical(logits=logits_batch) 
         log_probs = policy_distribution.log_prob(action_batch)
-
-        objective = -(log_probs * future_returns_batch).sum() / self.batch_size
+ 
+        objective = -(log_probs * future_returns_batch).sum() / self.batch_size 
 
         self.optimizer.zero_grad() 
         
         objective.backward()
+
+        if self.clip_norm > 0:
+            gnn_gradient_norm = torch.nn.utils.clip_grad_norm_(self.gnn.parameters(), self.clip_norm)
+            projection_employees_gradient_norm = torch.nn.utils.clip_grad_norm_(self.projection_employees.parameters(), self.clip_norm)
+            projection_shifts_gradient_norm = torch.nn.utils.clip_grad_norm_(self.projection_shifts.parameters(), self.clip_norm)
         
-        self.optimizer.step()        
+        self.optimizer.step()
 
         self.tensorboard.add_scalar("train_objective", objective.detach().cpu(), self.epoch)
         self.tensorboard.add_scalar("train_avg_reward", reward_batch.mean().detach().cpu(), self.epoch)
         self.tensorboard.add_scalar("train_avg_future_returns", future_returns_batch.mean().detach().cpu(), self.epoch)
+        self.tensorboard.add_scalar("gnn_gradient_norm", gnn_gradient_norm.detach().cpu(), self.epoch)
+        self.tensorboard.add_scalar("projection_employees_gradient_norm", projection_employees_gradient_norm.detach().cpu(), self.epoch)
+        self.tensorboard.add_scalar("projection_shifts_gradient_norm", projection_shifts_gradient_norm.detach().cpu(), self.epoch)
 
     def evaluation(self) -> None:
         """
@@ -132,6 +142,7 @@ class Training():
         if env.terminated():
             num_terminated = num_terminated + 1
         self.tensorboard.add_scalar("future_returns_employee_1", evaluation_steps.memory[0].future_return, self.epoch)
+        self.tensorboard.add_scalar("num_assigned_shifts_employee_1", env.get_num_staffed_shifts(), self.epoch)
         
         num_employees = 2
         env = PersonnelScheduleEnv(
@@ -148,7 +159,8 @@ class Training():
         evaluation_actor.sample_episode()
         if env.terminated():
             num_terminated = num_terminated + 1
-        self.tensorboard.add_scalar("future_returns_employee_2", evaluation_steps.memory[0].future_return, self.epoch)   
+        self.tensorboard.add_scalar("future_returns_employee_2", evaluation_steps.memory[0].future_return, self.epoch) 
+        self.tensorboard.add_scalar("num_assigned_shifts_employee_2", env.get_num_staffed_shifts(), self.epoch)  
         
         num_employees = 5
         env = PersonnelScheduleEnv(
@@ -167,8 +179,11 @@ class Training():
             num_terminated = num_terminated + 1
         eval_future_returns_employee_5 = evaluation_steps.memory[0].future_return
         self.tensorboard.add_scalar("future_returns_employee_5", eval_future_returns_employee_5, self.epoch)    
+        self.tensorboard.add_scalar("num_assigned_shifts_employee_5", env.get_num_staffed_shifts(), self.epoch)
 
-        self.tensorboard.add_scalar("termination_percentage", num_terminated / 3, self.epoch)     
+        self.tensorboard.add_scalar("termination_percentage", num_terminated / 3, self.epoch) 
+        if num_terminated > 0:
+            print("Episode terminated during evaluation")    
         
         if eval_future_returns_employee_5 > self.best_eval_future_returns_employee_5:
             torch.save(self.gnn.state_dict(), self.output_dir + "/gnn_weights")
@@ -181,6 +196,13 @@ class Training():
         """
         for epoch in tqdm(range(self.num_epoch)):
             self.epoch = epoch
+            env = PersonnelScheduleEnv(
+                employees=DataGenerator.get_random_employees(3,3), 
+                shifts=DataGenerator.get_week_shifts(), 
+                assignments=DataGenerator.get_empty_assignments(), 
+                device=self.device
+                )
+            self.actor.env = env
             self.actor.sample_episode() 
             self._gradient_update()
 

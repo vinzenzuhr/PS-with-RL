@@ -49,9 +49,9 @@ class RLagent():
         """
         assignments = state["assigned"]["edge_index"]
         assignments_flipped=torch.vstack((state["assigned"]["edge_index"][1], state["assigned"]["edge_index"][0])) 
-        edge_type = torch.zeros(state["assigned"]["edge_index"].shape[1], dtype=torch.int64)
+        edge_type = torch.zeros(state["assigned"]["edge_index"].shape[1], dtype=torch.int64) 
 
-        emb_employees = self.projection_employees(state.x_dict["employee"])
+        emb_employees = self.projection_employees(state.x_dict["employee"]) 
         emb_shifts = self.projection_shifts(state.x_dict["shift"])
         
         for _ in range(self.num_message_passing):
