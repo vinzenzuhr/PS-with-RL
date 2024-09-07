@@ -4,7 +4,9 @@ from .Actor import Actor
 
 from .ActorMemoryWrapper import ActorMemoryWrapper
 
-from .DataGenerator import DataGenerator    
+from .DataGenerator import DataGenerator 
+
+from .GNN import GNN
 
 from .PersonnelScheduleEnv import PersonnelScheduleEnv
 

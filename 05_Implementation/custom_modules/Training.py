@@ -20,11 +20,8 @@ class Training():
         Args:
             gnn (RGCNConv): GNN to encode nodes. 
             optimizer (Optimizer): Optimizer for GNN and projection layers. 
-            projection_employees (torch.nn.Linear): Linear layer for projecting employee features.
-            projection_shifts (torch.nn.Linear): Linear layer for projecting shift features.
             tensorboard (SummaryWriter): Tensorboard writer for logging.
-            device (device): Device to run the training on.
-            num_message_passing (int, optional): Number of iterations to embed nodes with GNN. Defaults to 4.    
+            device (device): Device to run the training on.    
             gamma (float, optional): Discount factor for future rewards. Defaults to 0.9.
             max_steps (int, optional): Maximum number of steps per episode. Defaults to 20.
             num_epoch (int, optional): Number of training epochs. Defaults to 100.
@@ -38,11 +35,8 @@ class Training():
             self, 
             gnn: RGCNConv,  
             optimizer: Optimizer, 
-            projection_employees: torch.nn.Linear, 
-            projection_shifts: torch.nn.Linear, 
             tensorboard: SummaryWriter, 
-            device: device, 
-            num_message_passing: int = 4,
+            device: device,  
             gamma: float = 0.9,
             max_steps: int = 20, 
             num_epoch: int = 100, 
@@ -54,11 +48,8 @@ class Training():
             ):
         self.gnn = gnn  
         self.optimizer = optimizer 
-        self.projection_employees = projection_employees
-        self.projection_shifts = projection_shifts
         self.tensorboard = tensorboard
-        self.device = device 
-        self.num_message_passing = num_message_passing
+        self.device = device  
         self.max_steps = max_steps
         self.num_epoch = num_epoch
         self.batch_size = batch_size
@@ -69,7 +60,7 @@ class Training():
             assignments=DataGenerator.get_empty_assignments(), 
             device=device
             )
-        self.agent = RLagent(gnn, projection_employees, projection_shifts, num_message_passing) 
+        self.agent = RLagent(gnn) 
         self.actor = ActorMemoryWrapper(Actor(self.agent, env=env, max_steps=max_steps), self.memory, gamma=gamma)
         self.eval_every_n_epochs = eval_every_n_epochs
         self.output_dir = output_dir
@@ -101,25 +92,23 @@ class Training():
         policy_distribution = distributions.categorical.Categorical(logits=logits_batch) 
         log_probs = policy_distribution.log_prob(action_batch)
  
-        objective = -(log_probs * future_returns_batch).sum() / self.batch_size 
+        objective = (-log_probs * future_returns_batch).sum() / self.batch_size 
 
         self.optimizer.zero_grad() 
         
         objective.backward()
 
         if self.clip_norm > 0:
-            gnn_gradient_norm = torch.nn.utils.clip_grad_norm_(self.gnn.parameters(), self.clip_norm)
-            projection_employees_gradient_norm = torch.nn.utils.clip_grad_norm_(self.projection_employees.parameters(), self.clip_norm)
-            projection_shifts_gradient_norm = torch.nn.utils.clip_grad_norm_(self.projection_shifts.parameters(), self.clip_norm)
+            gnn_gradient_norm = torch.nn.utils.clip_grad_norm_(self.gnn.parameters(), self.clip_norm) 
         
         self.optimizer.step()
+
+        self.memory.clear()
 
         self.tensorboard.add_scalar("train_objective", objective.detach().cpu(), self.epoch)
         self.tensorboard.add_scalar("train_avg_reward", reward_batch.mean().detach().cpu(), self.epoch)
         self.tensorboard.add_scalar("train_avg_future_returns", future_returns_batch.mean().detach().cpu(), self.epoch)
         self.tensorboard.add_scalar("gnn_gradient_norm", gnn_gradient_norm.detach().cpu(), self.epoch)
-        self.tensorboard.add_scalar("projection_employees_gradient_norm", projection_employees_gradient_norm.detach().cpu(), self.epoch)
-        self.tensorboard.add_scalar("projection_shifts_gradient_norm", projection_shifts_gradient_norm.detach().cpu(), self.epoch)
 
     def evaluation(self) -> None:
         """
@@ -186,9 +175,7 @@ class Training():
             print("Episode terminated during evaluation")    
         
         if eval_future_returns_employee_5 > self.best_eval_future_returns_employee_5:
-            torch.save(self.gnn.state_dict(), self.output_dir + "/gnn_weights")
-            torch.save(self.projection_employees.state_dict(), self.output_dir + "/projection_employees_weights")
-            torch.save(self.projection_shifts.state_dict(), self.output_dir + "/projection_shifts_weights")
+            self.gnn.save(self.output_dir + "/gnn_weights") 
         
     def start_training(self) -> None:
         """
@@ -197,7 +184,7 @@ class Training():
         for epoch in tqdm(range(self.num_epoch)):
             self.epoch = epoch
             env = PersonnelScheduleEnv(
-                employees=DataGenerator.get_random_employees(3,3), 
+                employees=DataGenerator.get_random_employees(2,2), 
                 shifts=DataGenerator.get_week_shifts(), 
                 assignments=DataGenerator.get_empty_assignments(), 
                 device=self.device

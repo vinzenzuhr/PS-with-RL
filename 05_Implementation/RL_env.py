@@ -9,9 +9,8 @@ import os
 
 import torch 
 from torch.utils.tensorboard import SummaryWriter
-from torch_geometric.nn import RGCNConv
 
-from custom_modules import Training
+from custom_modules import Training, DataGenerator, GNN
 
 
 # In[2]:
@@ -20,16 +19,17 @@ from custom_modules import Training
 @dataclass
 class TrainingConfig:
     output_dir = "RL_PersSched"
-    num_epoch = 220000 #10'000 needs 1 hour with 3x CPU, 3GB RAM and 1x 1080ti
-    max_steps = 20
-    batch_size = 128
+    num_epoch = 1000000 #10'000 needs 1 hour with 3x CPU, 3GB RAM and 1x 1080ti
+    max_steps = 8
+    batch_size = 1280
+    replay_size = 1280
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    replay_size = 10000
     eval_every_n_epochs = 20
-    lr = 1e-4
-    gamma = 0.9
-    hidden_dim = 3
-    num_message_passing = 4
+    lr = 1e-3
+    gamma = 0.99
+    hidden_dim = 32
+    num_message_layer = 2
+    clip_norm = 1
 
 config = TrainingConfig()
 
@@ -46,21 +46,36 @@ os.makedirs(config.output_dir, exist_ok=True)
 # In[4]:
 
 
-gnn = RGCNConv(in_channels = (config.hidden_dim, config.hidden_dim), out_channels=config.hidden_dim, num_relations=1).to(config.device)
 dim_employee = 1
-projection_employees = torch.nn.Linear(dim_employee, config.hidden_dim).to(config.device)
 dim_shift = 7
-projection_shifts = torch.nn.Linear(dim_shift, config.hidden_dim).to(config.device)
+gnn = GNN((dim_employee, dim_shift), hidden_dim=config.hidden_dim, num_message_layer=config.num_message_layer, device=config.device)
+
+
+# In[5]:
+
+
+optimizer = torch.optim.AdamW(
+    gnn.parameters(), 
+    lr=config.lr, 
+    amsgrad=True
+    ) 
 
 
 # In[6]:
 
 
-optimizer = torch.optim.AdamW(
-    list(gnn.parameters()) + list(projection_employees.parameters()) + list(projection_shifts.parameters()), 
-    lr=config.lr, 
-    amsgrad=True
-    ) 
+tb_summary.add_scalar("num_parameters", len(gnn.parameters()), 0)
+tb_summary.add_scalar("num_epoch", config.num_epoch, 0)
+tb_summary.add_scalar("max_steps", config.max_steps, 0)
+tb_summary.add_scalar("batch_size", config.batch_size, 0)
+tb_summary.add_scalar("replay_size", config.replay_size, 0)
+tb_summary.add_scalar("eval_every_n_epochs", config.eval_every_n_epochs, 0)
+tb_summary.add_scalar("lr", config.lr, 0)
+tb_summary.add_scalar("gamma", config.gamma, 0)
+tb_summary.add_scalar("hidden_dim", config.hidden_dim, 0)
+tb_summary.add_scalar("num_message_passing", config.num_message_layer, 0)
+tb_summary.add_scalar("clip_norm", config.clip_norm, 0)
+tb_summary.add_scalar("num_shifts", DataGenerator.get_week_shifts().shape[0], 0)
 
 
 # In[7]:
@@ -69,19 +84,17 @@ optimizer = torch.optim.AdamW(
 training = Training(
     gnn, 
     optimizer, 
-    projection_employees,
-    projection_shifts,
     tb_summary, 
-    device=config.device,
-    num_message_passing=config.num_message_passing, 
+    device=config.device,  
     gamma=config.gamma,
     max_steps=config.max_steps, 
     num_epoch=config.num_epoch, 
     batch_size=config.batch_size, 
     replay_size=config.replay_size, 
     eval_every_n_epochs=config.eval_every_n_epochs,
-    output_dir=config.output_dir
-)
+    output_dir=config.output_dir,
+    clip_norm=config.clip_norm
+) 
 training.start_training()
 
 

@@ -47,16 +47,16 @@ class DataGenerator():
         shifts.append(torch.tensor([0,0,0,0,0,0,1])) # Monday, night
         shifts.append(torch.tensor([1,0,0,0,0,0,0])) # Tuesday, day
         shifts.append(torch.tensor([1,0,0,0,0,0,1])) # Tuesday, night
-        shifts.append(torch.tensor([0,1,0,0,0,0,0])) # Wednesday, day
-        shifts.append(torch.tensor([0,1,0,0,0,0,1])) # Wednesday, night
-        shifts.append(torch.tensor([0,0,1,0,0,0,0])) # Thursday, day
-        shifts.append(torch.tensor([0,0,1,0,0,0,1])) # Thursday, night
-        shifts.append(torch.tensor([0,0,0,1,0,0,0])) # Friday, day
-        shifts.append(torch.tensor([0,0,0,1,0,0,1])) # Friday, night
-        shifts.append(torch.tensor([0,0,0,0,1,0,0])) # Saturday, day
-        shifts.append(torch.tensor([0,0,0,0,1,0,1])) # Saturday, night
-        shifts.append(torch.tensor([0,0,0,0,0,1,0])) # Sunday, day
-        shifts.append(torch.tensor([0,0,0,0,0,1,1])) # Sunday, night
+        #shifts.append(torch.tensor([0,1,0,0,0,0,0])) # Wednesday, day
+        #shifts.append(torch.tensor([0,1,0,0,0,0,1])) # Wednesday, night
+        #shifts.append(torch.tensor([0,0,1,0,0,0,0])) # Thursday, day
+        #shifts.append(torch.tensor([0,0,1,0,0,0,1])) # Thursday, night
+        #shifts.append(torch.tensor([0,0,0,1,0,0,0])) # Friday, day
+        #shifts.append(torch.tensor([0,0,0,1,0,0,1])) # Friday, night
+        #shifts.append(torch.tensor([0,0,0,0,1,0,0])) # Saturday, day
+        #shifts.append(torch.tensor([0,0,0,0,1,0,1])) # Saturday, night
+        #shifts.append(torch.tensor([0,0,0,0,0,1,0])) # Sunday, day
+        #shifts.append(torch.tensor([0,0,0,0,0,1,1])) # Sunday, night
         shifts = torch.vstack(shifts)
         shifts = shifts.to(torch.float)
         return shifts

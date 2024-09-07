@@ -142,7 +142,7 @@ class PersonnelScheduleEnv(gym.Env):
         
         # if no shift exists, create one
         if not (~mask).any():
-            self.state["assigned"].edge_index = torch.hstack((self.state["assigned"].edge_index, action_edge[:,None]))
+            self.state["assigned"].edge_index = torch.hstack((self.state["assigned"].edge_index, action_edge[:,None])) 
             
         return (copy.deepcopy(self.state), self.reward(), self.terminated(), self.truncated(), self.info())
 
@@ -167,8 +167,9 @@ class PersonnelScheduleEnv(gym.Env):
         """
 
         reward = 0
-        #reward = reward + self.get_num_staffed_shifts()
-        #reward = reward - ((1/(self.num_shifts-1))*self._get_num_consecutive_violations())
+        factor = (1/(self.num_shifts-1))
+        #reward = reward + factor*self.get_num_staffed_shifts()
+        #reward = reward - factor*self._get_num_consecutive_violations()
         if self.terminated():
             reward = reward + 1
         return reward
@@ -182,7 +183,7 @@ class PersonnelScheduleEnv(gym.Env):
 
         terminated = True
         planning = self.get_current_planning()
-        for i in range(self.num_shifts-1): 
+        for i in range(self.num_shifts): 
             if len(planning[i]) < self.num_employee_per_shift:
                 terminated = False
                 break

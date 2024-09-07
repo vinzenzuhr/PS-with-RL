@@ -33,10 +33,6 @@ class ActorMemoryWrapper():
         Executes an episode using the actor, calculates future_returns and stores the steps in the memory. 
         """  
         steps = self.actor.execute_episode() 
-        for step in steps:
-            print(step[0]["employee"].x.requires_grad)
-            print(step[1])
-            print(step[2])
         transitions = []  
         future_returns = 0
         for step in reversed(steps):

@@ -17,6 +17,7 @@ class Actor:
         self.agent = agent
         self.max_steps = max_steps
         self.env = env 
+        self.env.reset()
 
     def execute_episode(self) -> list[Tuple[HeteroData, int, float]]:
         """
@@ -32,22 +33,20 @@ class Actor:
         steps = []
         i = 0
         while not terminated and i < self.max_steps:  
-            action, new_state, reward, terminated = self.step(state) 
+            action, new_state, reward, terminated = self.step() 
             steps.append((state, action, reward)) 
             state = new_state 
             i = i + 1  
         return steps
 
-    def step(self, current_state: HeteroData) -> Tuple[int, HeteroData, float, bool]:
+    def step(self) -> Tuple[int, HeteroData, float, bool]:
         """
         Takes a step in the environment based on the current state.
-        Args:
-            current_state (HeteroData): The current state of the environment.
         Returns:
             Tuple[int, HeteroData, float, bool]: A tuple containing the action taken, the new state, 
                 the reward received, and a flag indicating if the episode terminated.
         """
         
-        action = self.agent.get_policy(current_state).sample().item() 
-        state, reward, terminated, _, _ = self.env.step(action)
+        action = self.agent.get_policy(self.env.state).sample().item()  
+        state, reward, terminated, _, _ = self.env.step(action) 
         return action, state, reward, terminated

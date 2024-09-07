@@ -13,13 +13,18 @@ class ReplayMemory():
     def __init__(self, capacity: int) -> None:
         self.memory=deque([], maxlen=capacity)
 
+    def clear(self) -> None:
+        """
+        Clears the memory.
+        """
+        self.memory.clear()
+
     def push(self, transition: Transition) -> None:
         """
         Add a transition to storage.
         Parameters:
             transition (Transition): The transition to be added. 
         """
-
         self.memory.append(transition)
 
     def sample(self, batch_size: int) -> list[Transition]:
@@ -30,7 +35,6 @@ class ReplayMemory():
         Returns:
             list[Transition]: A list of sampled transitions.
         """
-
         return random.sample(self.memory, batch_size)
     
     def __len__(self) -> int:
@@ -39,5 +43,4 @@ class ReplayMemory():
         Returns:
             int: Number of stored objects.
         """
-
         return len(self.memory)

@@ -9,17 +9,11 @@ class RLagent():
     """
     Agent for choosing an action based on the current state.
     Args:
-        gnn (RGCNConv): GNN to encode nodes. 
-        projection_employees (torch.nn.Linear): Linear layer for projecting employee features.
-        projection_shifts (torch.nn.Linear): Linear layer for projecting shift features. 
-        num_message_passing (int, optional): Number of iterations to embed nodes with GNN. Defaults to 4.      
+        gnn (RGCNConv): GNN to encode nodes.   
     """
     
-    def __init__(self, gnn: RGCNConv, projection_employees: torch.nn.Linear, projection_shifts: torch.nn.Linear, num_message_passing: int = 4,) -> None: 
-        self.gnn = gnn  
-        self.projection_employees = projection_employees
-        self.projection_shifts = projection_shifts
-        self.num_message_passing = num_message_passing
+    def __init__(self, gnn: RGCNConv) -> None: 
+        self.gnn = gnn   
 
     def decode(self, emb_employees: torch.tensor, emb_shifts: torch.tensor) -> torch.tensor:
         """
@@ -47,25 +41,11 @@ class RLagent():
         Returns:
             Tuple[torch.tensor, torch.tensor]: Embeddings for employees and shifts.
         """
-        assignments = state["assigned"]["edge_index"]
-        assignments_flipped=torch.vstack((state["assigned"]["edge_index"][1], state["assigned"]["edge_index"][0])) 
-        edge_type = torch.zeros(state["assigned"]["edge_index"].shape[1], dtype=torch.int64) 
 
-        emb_employees = self.projection_employees(state.x_dict["employee"]) 
-        emb_shifts = self.projection_shifts(state.x_dict["shift"])
-        
-        for _ in range(self.num_message_passing):
-            emb_shifts = self.gnn(
-                x=(emb_employees, emb_shifts), 
-                edge_index=assignments, 
-                edge_type=edge_type
-                )
-
-            emb_employees = self.gnn(
-                x=(emb_shifts, emb_employees), 
-                edge_index=assignments_flipped, 
-                edge_type=edge_type
-                )
+        emb_employees, emb_shifts = self.gnn.forward(
+            x=(state.x_dict["employee"], state.x_dict["shift"]),
+            edge_index=state["assigned"]["edge_index"]
+        )
 
         return emb_employees, emb_shifts
         
@@ -79,5 +59,5 @@ class RLagent():
         """
 
         logits = self.decode(*self.encode(state)) 
-        policy_distribution = Categorical(logits=logits)
+        policy_distribution = Categorical(logits=logits) 
         return policy_distribution
