@@ -31,9 +31,9 @@ class Actor:
         state, _ = self.env.reset()
         terminated = False
         steps = []
-        i = 0
-        while not terminated and i < self.max_steps:  
-            action, new_state, reward, terminated = self.step() 
+        i = 0 
+        while not terminated and i < self.max_steps:
+            action, new_state, reward, terminated = self.step()   
             steps.append((state, action, reward)) 
             state = new_state 
             i = i + 1  
@@ -47,6 +47,6 @@ class Actor:
                 the reward received, and a flag indicating if the episode terminated.
         """
         
-        action = self.agent.get_policy(self.env.state).sample().item()  
+        action = self.agent.get_policy(self.env.state).sample().item() 
         state, reward, terminated, _, _ = self.env.step(action) 
         return action, state, reward, terminated

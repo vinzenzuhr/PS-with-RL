@@ -55,6 +55,20 @@ class PersonnelScheduleEnv(gym.Env):
                 ).total()  
         return num_consecutive_violations
 
+    def are_all_shifts_staffed(self) -> bool:
+        """
+        Checks if all shifts have enough personnel assigned.
+        Returns:
+            bool: True if all shifts have enough personnel assigned, False otherwise.
+        """
+        staffed = True
+        planning = self.get_current_planning()
+        for i in range(self.num_shifts): 
+            if len(planning[i]) < self.num_employee_per_shift:
+                staffed = False
+                break
+        return staffed
+    
     def idx2edge(self, idx: int) -> Tuple[int,int]:
         """
         Converts an action index to an edge in the graph.
@@ -73,8 +87,7 @@ class PersonnelScheduleEnv(gym.Env):
         - edge (Tuple[int,int]): The edge to lookup the action index for.
         Returns:
         - int: The action index of the edge.
-        """
-
+        """  
         return self.edge_space.index(edge)
 
     def get_num_staffed_shifts(self) -> int:
@@ -169,24 +182,21 @@ class PersonnelScheduleEnv(gym.Env):
         reward = 0
         factor = (1/(self.num_shifts-1))
         #reward = reward + factor*self.get_num_staffed_shifts()
-        #reward = reward - factor*self._get_num_consecutive_violations()
-        if self.terminated():
+        reward = reward - factor*self._get_num_consecutive_violations()
+        if self.are_all_shifts_staffed():
             reward = reward + 1
         return reward
 
     def terminated(self) -> bool:
         """
-        Check if every shift has enough personnel assigned.
+        Check if every shift has enough personnel assigned or no actions are left.
         Returns:
-            bool: True if every shift has enough personnel assigned, False otherwise.
+            bool: True if all shifts are staffed or no actions are left, False otherwise.
         """
+        terminated = self.are_all_shifts_staffed()
+        if len(self.edge_space) == self.state["assigned"].edge_index.shape[1]:
+            terminated = True
 
-        terminated = True
-        planning = self.get_current_planning()
-        for i in range(self.num_shifts): 
-            if len(planning[i]) < self.num_employee_per_shift:
-                terminated = False
-                break
         return terminated
 
     def truncated(self) -> bool:

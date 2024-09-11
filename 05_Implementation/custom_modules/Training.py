@@ -60,7 +60,7 @@ class Training():
             assignments=DataGenerator.get_empty_assignments(), 
             device=device
             )
-        self.agent = RLagent(gnn) 
+        self.agent = RLagent(gnn, env) 
         self.actor = ActorMemoryWrapper(Actor(self.agent, env=env, max_steps=max_steps), self.memory, gamma=gamma)
         self.eval_every_n_epochs = eval_every_n_epochs
         self.output_dir = output_dir
@@ -86,12 +86,17 @@ class Training():
         logits_list = list()
         for i in torch.arange(self.batch_size): 
             logits = self.agent.decode(*self.agent.encode(state_batch[i]))
-            logits_list.append(logits)
-        logits_batch = torch.vstack(logits_list).to(self.device) 
+            logits_list.append(logits) 
+        # Pad the logits to the same length with logit -1e9
+        logits_batch = torch.nn.utils.rnn.pad_sequence(
+            logits_list,  
+            batch_first=True,  
+            padding_value=-1e9 
+            ).to(self.device) 
 
         policy_distribution = distributions.categorical.Categorical(logits=logits_batch) 
         log_probs = policy_distribution.log_prob(action_batch)
- 
+        
         objective = (-log_probs * future_returns_batch).sum() / self.batch_size 
 
         self.optimizer.zero_grad() 
@@ -113,44 +118,7 @@ class Training():
     def evaluation(self) -> None:
         """
         Performs evaluation of the model's performance on different number of employees and saves best model. 
-        """ 
-        num_terminated = 0
-        num_employees = 1
-        env = PersonnelScheduleEnv(
-            employees=DataGenerator.get_random_employees(num_employees, num_employees), 
-            shifts=DataGenerator.get_week_shifts(), 
-            assignments=DataGenerator.get_empty_assignments(), 
-            device=self.device
-            )
-        evaluation_steps = ReplayMemory(self.max_steps)
-        evaluation_actor = ActorMemoryWrapper(
-            Actor(self.agent, env=env, max_steps=self.max_steps), 
-            evaluation_steps
-            )
-        evaluation_actor.sample_episode()
-        if env.terminated():
-            num_terminated = num_terminated + 1
-        self.tensorboard.add_scalar("future_returns_employee_1", evaluation_steps.memory[0].future_return, self.epoch)
-        self.tensorboard.add_scalar("num_assigned_shifts_employee_1", env.get_num_staffed_shifts(), self.epoch)
-        
-        num_employees = 2
-        env = PersonnelScheduleEnv(
-            employees=DataGenerator.get_random_employees(num_employees, num_employees), 
-            shifts=DataGenerator.get_week_shifts(), 
-            assignments=DataGenerator.get_empty_assignments(), 
-            device=self.device
-            )
-        evaluation_steps = ReplayMemory(self.max_steps)
-        evaluation_actor = ActorMemoryWrapper(
-            Actor(self.agent, env=env, max_steps=self.max_steps), 
-            evaluation_steps
-            )
-        evaluation_actor.sample_episode()
-        if env.terminated():
-            num_terminated = num_terminated + 1
-        self.tensorboard.add_scalar("future_returns_employee_2", evaluation_steps.memory[0].future_return, self.epoch) 
-        self.tensorboard.add_scalar("num_assigned_shifts_employee_2", env.get_num_staffed_shifts(), self.epoch)  
-        
+        """  
         num_employees = 5
         env = PersonnelScheduleEnv(
             employees=DataGenerator.get_random_employees(num_employees, num_employees), 
@@ -159,20 +127,15 @@ class Training():
             device=self.device
             )
         evaluation_steps = ReplayMemory(self.max_steps)
+        evaluation_agent = RLagent(self.gnn, env)
         evaluation_actor = ActorMemoryWrapper(
-            Actor(self.agent, env=env, max_steps=self.max_steps), 
+            Actor(evaluation_agent, env=env, max_steps=self.max_steps), 
             evaluation_steps
             )
-        evaluation_actor.sample_episode()
-        if env.terminated():
-            num_terminated = num_terminated + 1
+        evaluation_actor.sample_episode() 
         eval_future_returns_employee_5 = evaluation_steps.memory[0].future_return
         self.tensorboard.add_scalar("future_returns_employee_5", eval_future_returns_employee_5, self.epoch)    
         self.tensorboard.add_scalar("num_assigned_shifts_employee_5", env.get_num_staffed_shifts(), self.epoch)
-
-        self.tensorboard.add_scalar("termination_percentage", num_terminated / 3, self.epoch) 
-        if num_terminated > 0:
-            print("Episode terminated during evaluation")    
         
         if eval_future_returns_employee_5 > self.best_eval_future_returns_employee_5:
             self.gnn.save(self.output_dir + "/gnn_weights") 
@@ -184,14 +147,15 @@ class Training():
         for epoch in tqdm(range(self.num_epoch)):
             self.epoch = epoch
             env = PersonnelScheduleEnv(
-                employees=DataGenerator.get_random_employees(2,2), 
+                employees=DataGenerator.get_random_employees(2,10), 
                 shifts=DataGenerator.get_week_shifts(), 
                 assignments=DataGenerator.get_empty_assignments(), 
                 device=self.device
-                )
+                ) 
             self.actor.env = env
+            self.agent.env = env 
             self.actor.sample_episode() 
-            self._gradient_update()
+            self._gradient_update() 
 
             if epoch % self.eval_every_n_epochs == 0:
                 self.evaluation()

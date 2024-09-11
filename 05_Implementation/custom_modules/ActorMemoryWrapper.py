@@ -1,4 +1,5 @@
-from collections import namedtuple 
+from collections import namedtuple
+from typing import Any 
 
 from custom_modules import Actor, ReplayMemory
 
@@ -27,8 +28,20 @@ class ActorMemoryWrapper():
             Any: The value of the attribute if found in the actor object.
         """ 
         return getattr(self.actor, name)
+    
+    def __setattr__(self, name: str, value: Any) -> None:
+        """
+        Overrides the default behavior when an attribute is set.
+        Args:
+            name (str): The name of the attribute being set.
+            value (Any): The value to set the attribute to.
+        """ 
+        if name == "actor" or name == "memory" or name == "gamma":
+            super().__setattr__(name, value)
+        else:
+            setattr(self.actor, name, value)
 
-    def sample_episode(self): 
+    def sample_episode(self) -> None: 
         """
         Executes an episode using the actor, calculates future_returns and stores the steps in the memory. 
         """  

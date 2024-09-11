@@ -6,7 +6,7 @@ class DataGenerator():
     """
     A class that generates data for employee, shifts and assignments. 
     """
-    
+    @staticmethod
     def get_random_employees(min_n: int = 1, max_n: int = 5) -> torch.Tensor:
         """
         Generates a random number of employees and returns a tensor representing their features (no features yet). 
@@ -17,9 +17,10 @@ class DataGenerator():
             torch.Tensor: A tensor representing the features of the generated employees.
         """
         
-        n = random.randint(min_n, max_n)
+        n = random.randint(min_n, max_n) 
         return torch.tensor([[1]], dtype=torch.float).expand((n,1)) 
     
+    @staticmethod
     def get_week_shifts() -> torch.Tensor:
         """
         Returns a tensor representing the two shifts for each day of the week.
@@ -61,6 +62,7 @@ class DataGenerator():
         shifts = shifts.to(torch.float)
         return shifts
     
+    @staticmethod
     def get_empty_assignments() -> torch.Tensor:
         """
         Returns an empty tensor representing assignments.

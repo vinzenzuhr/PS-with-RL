@@ -9,11 +9,13 @@ class RLagent():
     """
     Agent for choosing an action based on the current state.
     Args:
-        gnn (RGCNConv): GNN to encode nodes.   
+        gnn (RGCNConv): GNN to encode nodes. 
+        env (PersonnelScheduleEnv): The environment in which the agent interacts.  
     """
     
-    def __init__(self, gnn: RGCNConv) -> None: 
+    def __init__(self, gnn: RGCNConv, env) -> None: 
         self.gnn = gnn   
+        self.env = env
 
     def decode(self, emb_employees: torch.tensor, emb_shifts: torch.tensor) -> torch.tensor:
         """
@@ -57,7 +59,12 @@ class RLagent():
         Returns:
             Categorical: The policy distribution containing the logits per action.
         """
+        logits = self.decode(*self.encode(state))  
 
-        logits = self.decode(*self.encode(state)) 
+        # Masking the actions that are already taken 
+        for i in torch.arange(state["assigned"]["edge_index"].shape[1]):
+            edge = (state["assigned"]["edge_index"][:,i][0].item(), state["assigned"]["edge_index"][:,i][1].item())
+            logits[self.env.edge2idx(edge)] = -float("inf") 
+
         policy_distribution = Categorical(logits=logits) 
         return policy_distribution
