@@ -43,7 +43,6 @@ class RLagent():
         Returns:
             Tuple[torch.tensor, torch.tensor]: Embeddings for employees and shifts.
         """
-
         emb_employees, emb_shifts = self.gnn.forward(
             x=(state.x_dict["employee"], state.x_dict["shift"]),
             edge_index=state["assigned"]["edge_index"]

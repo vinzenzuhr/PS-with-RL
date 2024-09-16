@@ -181,7 +181,7 @@ class PersonnelScheduleEnv(gym.Env):
 
         reward = 0
         factor = (1/(self.num_shifts-1))
-        #reward = reward + factor*self.get_num_staffed_shifts()
+        reward = reward + factor*self.get_num_staffed_shifts()
         reward = reward - factor*self._get_num_consecutive_violations()
         if self.are_all_shifts_staffed():
             reward = reward + 1

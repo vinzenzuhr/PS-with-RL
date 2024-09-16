@@ -3,7 +3,7 @@ from typing import Any
 
 from custom_modules import Actor, ReplayMemory
 
-Transition = namedtuple("Transition", ("state", "action", "reward", "future_return"))
+Transition = namedtuple("Transition", ("state", "logits", "action", "reward", "future_return"))
 
 class ActorMemoryWrapper():
     """
@@ -49,7 +49,7 @@ class ActorMemoryWrapper():
         transitions = []  
         future_returns = 0
         for step in reversed(steps):
-            future_returns = self.gamma*future_returns + step[2]  
+            future_returns = self.gamma*future_returns + step[3]  
             transitions.append(Transition(*step, future_returns)) 
         for transition in reversed(transitions): 
             self.memory.push(transition)

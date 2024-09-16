@@ -20,12 +20,12 @@ from custom_modules import Training, DataGenerator, GNN
 class TrainingConfig:
     output_dir = "RL_PersSched"
     num_epoch = 1000000 #10'000 needs 1 hour with 3x CPU, 3GB RAM and 1x 1080ti
-    max_steps = 8
+    max_steps = 28
     batch_size = 1280
     replay_size = 1280
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    eval_every_n_epochs = 20
-    lr = 1e-3
+    eval_every_n_epochs = 2000
+    lr = 1e-4
     gamma = 0.99
     hidden_dim = 32
     num_message_layer = 2

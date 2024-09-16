@@ -1,5 +1,6 @@
 from typing import Tuple
 
+import torch
 from torch_geometric.data import HeteroData
 
 from custom_modules import RLagent, PersonnelScheduleEnv
@@ -15,16 +16,18 @@ class Actor:
 
     def __init__(self, agent: RLagent, env: PersonnelScheduleEnv, max_steps: int = 20) -> None:
         self.agent = agent
-        self.max_steps = max_steps
         self.env = env 
+        self.max_steps = max_steps
+
         self.env.reset()
 
-    def execute_episode(self) -> list[Tuple[HeteroData, int, float]]:
+    def execute_episode(self) -> list[Tuple[HeteroData, torch.tensor, int, float]]:
         """
         Does as many steps until episode is finished or max_steps is reached.
         Returns:
             A list of tuples representing the steps taken in the episode. Each tuple contains:
             - state: The state before taking the action.
+            - logits: The logits of the policy for the state (used for learning).
             - action: The action taken in the state.
             - reward: The reward received after taking the action.
         """ 
@@ -33,20 +36,21 @@ class Actor:
         steps = []
         i = 0 
         while not terminated and i < self.max_steps:
-            action, new_state, reward, terminated = self.step()   
-            steps.append((state, action, reward)) 
+            logits, action, new_state, reward, terminated = self.step()   
+            steps.append((state, logits, action, reward)) 
             state = new_state 
-            i = i + 1  
+            i = i + 1   
         return steps
 
     def step(self) -> Tuple[int, HeteroData, float, bool]:
         """
         Takes a step in the environment based on the current state.
         Returns:
-            Tuple[int, HeteroData, float, bool]: A tuple containing the action taken, the new state, 
-                the reward received, and a flag indicating if the episode terminated.
+            Tuple[torch.tensor, int, HeteroData, float, bool]: A tuple containing the logits of the 
+                policy for the state, action taken, the new state, the reward received, 
+                and a flag indicating if the episode terminated.
         """
-        
-        action = self.agent.get_policy(self.env.state).sample().item() 
+        policy = self.agent.get_policy(self.env.state)
+        action = policy.sample().item()
         state, reward, terminated, _, _ = self.env.step(action) 
-        return action, state, reward, terminated
+        return policy.logits, action, state, reward, terminated

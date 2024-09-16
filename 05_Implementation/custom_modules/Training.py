@@ -1,7 +1,7 @@
 from collections import namedtuple 
 import sys
 
-from tqdm import tqdm
+from tqdm.auto import tqdm
 import torch
 from torch import distributions
 from torch.cuda import device
@@ -11,7 +11,7 @@ from torch_geometric.nn import RGCNConv
 
 from custom_modules import ReplayMemory, ActorMemoryWrapper, DataGenerator, PersonnelScheduleEnv, RLagent, Actor
 
-Transition = namedtuple("Transition", ("state", "action", "reward", "future_return"))
+Transition = namedtuple("Transition", ("state", "logits", "action", "reward", "future_return"))
 
 class Training():
     class Training:
@@ -75,24 +75,18 @@ class Training():
             return 
 
         transitions = self.memory.sample(self.batch_size)
+
         #converts batch_array of Transitions to Transition of batch_arrays
         batch = Transition(*zip(*transitions))
         
-        state_batch = batch.state
+        logits_batch = torch.nn.utils.rnn.pad_sequence(
+            batch.logits,  
+            batch_first=True,  
+            padding_value=-float("inf")  
+            ).to(self.device)  
         action_batch = torch.tensor(batch.action, dtype=torch.int).to(self.device)
         reward_batch = torch.tensor(batch.reward, dtype=torch.float).to(self.device)
         future_returns_batch = torch.tensor(batch.future_return, dtype=torch.float).to(self.device)
-
-        logits_list = list()
-        for i in torch.arange(self.batch_size): 
-            logits = self.agent.decode(*self.agent.encode(state_batch[i]))
-            logits_list.append(logits) 
-        # Pad the logits to the same length with logit -1e9
-        logits_batch = torch.nn.utils.rnn.pad_sequence(
-            logits_list,  
-            batch_first=True,  
-            padding_value=-1e9 
-            ).to(self.device) 
 
         policy_distribution = distributions.categorical.Categorical(logits=logits_batch) 
         log_probs = policy_distribution.log_prob(action_batch)
@@ -100,13 +94,17 @@ class Training():
         objective = (-log_probs * future_returns_batch).sum() / self.batch_size 
 
         self.optimizer.zero_grad() 
-        
         objective.backward()
-
         if self.clip_norm > 0:
-            gnn_gradient_norm = torch.nn.utils.clip_grad_norm_(self.gnn.parameters(), self.clip_norm) 
-        
+            gnn_gradient_norm = torch.nn.utils.clip_grad_norm_(self.gnn.parameters(), self.clip_norm)
         self.optimizer.step()
+
+        self.progress_bar.set_postfix({
+            f"obj": objective.detach().item(), 
+            f"rew": reward_batch.mean().detach().item(),
+            f"fut_ret": future_returns_batch.mean().detach().item(),
+            f"grad": gnn_gradient_norm.detach().item()
+            })
 
         self.memory.clear()
 
@@ -144,7 +142,9 @@ class Training():
         """
         Starts the training process.  
         """
-        for epoch in tqdm(range(self.num_epoch)):
+        self.progress_bar = tqdm(range(self.num_epoch))
+        for epoch in range(self.num_epoch):
+            self.progress_bar.set_description(f"Epoch {epoch}")
             self.epoch = epoch
             env = PersonnelScheduleEnv(
                 employees=DataGenerator.get_random_employees(2,10), 
@@ -159,3 +159,5 @@ class Training():
 
             if epoch % self.eval_every_n_epochs == 0:
                 self.evaluation()
+
+            self.progress_bar.update(1)
